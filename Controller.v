@@ -1,7 +1,7 @@
 `timescale 1ns / 1ps
 
 `include "defines.vh"
-
+// 规定所有的指令的分配以及输出所有的控制信号
 module Controller (
     input  wire [ 6:0]  opcode,
     input  wire [ 2:0]  funct3,
@@ -27,41 +27,76 @@ module Controller (
     wire BNE   = (opcode == 7'b1100011) && (funct3 == 3'b001);
     wire LUI   = (opcode == 7'b0110111);
     wire JAL   = (opcode == 7'b1101111);
+
+    // 18条指令
+    wire AND   = (opcode == 7'b0110011) && (funct3 == 3'b111) && (funct7 == 7'b0000000);
+    wire OR    = (opcode == 7'b0110011) && (funct3 == 3'b110) && (funct7 == 7'b0000000);
+    wire SLT   = (opcode == 7'b0110011) && (funct3 == 3'b010) && (funct7 == 7'b0000000);
+    wire SLTU  = (opcode == 7'b0110011) && (funct3 == 3'b011) && (funct7 == 7'b0000000);
+    wire MUL   = (opcode == 7'b0110011) && (funct3 == 3'b000) && (funct7 == 7'b0000001);
+    wire MULH  = (opcode == 7'b0110011) && (funct3 == 3'b001) && (funct7 == 7'b0000001);
+    wire MULHU = (opcode == 7'b0110011) && (funct3 == 3'b011) && (funct7 == 7'b0000001);
+    wire DIV   = (opcode == 7'b0110011) && (funct3 == 3'b100) && (funct7 == 7'b0000001);
+    wire DIVU  = (opcode == 7'b0110011) && (funct3 == 3'b101) && (funct7 == 7'b0000001);
+    wire REM   = (opcode == 7'b0110011) && (funct3 == 3'b110) && (funct7 == 7'b0000001);
+    wire REMU  = (opcode == 7'b0110011) && (funct3 == 3'b111) && (funct7 == 7'b0000001);
+
+    wire ANDI  = (opcode == 7'b0010011) && (funct3 == 3'b111);
+    wire SLTI  = (opcode == 7'b0010011) && (funct3 == 3'b010);
+    wire SLTIU = (opcode == 7'b0010011) && (funct3 == 3'b011);
+
+    wire BLT   = (opcode == 7'b1100011) && (funct3 == 3'b100);
+    wire BLTU  = (opcode == 7'b1100011) && (funct3 == 3'b110);
+    wire BGE   = (opcode == 7'b1100011) && (funct3 == 3'b101);
+    wire BGEU  = (opcode == 7'b1100011) && (funct3 == 3'b111);
  
     // npc_op
-    wire NPC_OP_BRA = BEQ | BNE;
+    wire NPC_OP_BRA = BEQ | BNE | BLT | BLTU | BGE | BGEU;
     wire NPC_OP_JMP = JAL;
     wire NPC_OP_PC4 = !NPC_OP_BRA & !NPC_OP_JMP;
     
-    // rf_we
-    wire RF_OP_WE = ADDI | ORI | SLLI | LW | LUI | JAL;
+    // rf_we 是否写寄存器
+    wire RF_OP_WE = ADDI | ORI | SLLI | LW | LUI | JAL | AND | OR | SLT | SLTU | MUL | MULH | MULHU | DIV | DIVU | REM | REMU | ANDI | SLTI | SLTIU;
     
-    // rf_wsel
-    wire WB_OP_ALU = ADDI | ORI | SLLI;
+    // rf_wsel 写回的数据来自哪里
+    wire WB_OP_ALU = ADDI | ORI | SLLI | AND | OR | SLT | SLTU | MUL| MULH | MULHU | DIV | DIVU | REM | REMU| ANDI | SLTI | SLTIU;
     wire WB_OP_RAM = LW;
     wire WB_OP_PC4 = JAL;
     wire WB_OP_EXT = LUI;
     
-    // sext_op
-    wire EXT_OP_I = ADDI | ORI | SLLI | LW;
-    wire EXT_OP_B = BEQ | BNE;
+    // sext_op 立即数如何扩展
+    wire EXT_OP_I = ADDI | ORI | SLLI | LW | ANDI | SLTI | SLTIU;
+    wire EXT_OP_B = BEQ | BNE | BLT | BLTU | BGE | BGEU;
     wire EXT_OP_U = LUI;
     wire EXT_OP_J = JAL;
     
-    // alu_op
+    // alu_op ALU执行什么运算
     wire ALU_OP_ADD   = ADDI | LW;
-    wire ALU_OP_OR    = ORI;
+    wire ALU_OP_OR    = ORI | OR;
     wire ALU_OP_SLL   = SLLI;
     wire ALU_OP_EQ    = BEQ;
     wire ALU_OP_NE    = BNE;
+    wire ALU_OP_AND   = AND | ANDI;
+    wire ALU_OP_SLT   = SLT | SLTI | BLT;
+    wire ALU_OP_SLTU  = SLTU | SLTIU | BLTU;
+    wire ALU_OP_MUL   = MUL;
+    wire ALU_OP_MULH  = MULH;
+    wire ALU_OP_MULHU = MULHU;
+    wire ALU_OP_DIV   = DIV;
+    wire ALU_OP_DIVU  = DIVU;
+    wire ALU_OP_REM   = REM;
+    wire ALU_OP_REMU  = REMU;
+    wire ALU_OP_BE    = BGE;
+    wire ALU_OP_BEU   = BGEU;
     
-    // alua_sel
-    wire ALU_A_SEL_RS1 = ADDI | ORI | SLLI | LW | BEQ | BNE | JAL;
-    wire ALU_A_SEL_PC  = 1'b0;
+    
+    // alua_sel ALU两个输入来自哪里
+    wire ALU_A_SEL_RS1 = ADDI | ORI | SLLI | LW | BEQ | BNE | JAL | AND | OR | SLT | SLTU | MUL | MULH | MULHU | DIV | DIVU | REM | REMU | ANDI | SLTI | SLTIU;
+    wire ALU_A_SEL_PC  = BLT | BLTU | BGE | BGEU;
                         
-    // alub_sel
-    wire ALU_B_SEL_RS2 = BEQ | BNE;
-    wire ALU_B_SEL_EXT = ADDI | ORI | SLLI | LW | JAL;
+    // alub_sel ALU两个输入来自哪里
+    wire ALU_B_SEL_RS2 = BEQ | BNE | AND | OR | SLT | SLTU | MUL | MULH | MULHU | DIV | DIVU | REM | REMU;
+    wire ALU_B_SEL_EXT = ADDI | ORI | SLLI | LW | JAL | ANDI | SLTI | SLTIU | BLT | BLTU | BGE | BGEU;
         
     // ram_r_op
     wire RAM_EXT_B  = 1'b0;

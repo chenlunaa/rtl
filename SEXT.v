@@ -1,5 +1,7 @@
 `timescale 1ns / 1ps
+`include "defines.vh"
 
+// 立即数生成器，根据op来生成不同类型指令的立即数
 module SEXT (
     input  wire [ 2:0]  op,
     input  wire [31:7]  imm,

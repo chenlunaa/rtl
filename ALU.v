@@ -23,15 +23,22 @@ module ALU (
     wire        div_busy, divu_busy;
     reg  [ 4:0] op_r;
 
+    // 只实现了加法、或运算、左移运算
     always @(*) begin
         case (op_r != 4'h0 ? op_r : op)
             `ALU_ADD  : c = a + b;
+            `ALU_AND  : c = a & b;
+            `ALU_SLT  : c = ($signed(a) < $signed(b)) ? 32'h1 : 32'h0;
             `ALU_OR   : c = a | b;
+            `ALU_SLTU : c = a < b ? 32'h1 : 32'h0;
             `ALU_SLL  : c = a << b[4:0];
+            `ALU_BE   : c = ($signed(a) < $signed(b)) ? 32'h0 : 32'h1;
+            `ALU_BEU  : c = a < b ? 32'h0 : 32'h1;
             default   : c = 32'h0;
         endcase
     end
 
+    // 分支跳转信号br
     always @(*) begin
         case (op)
             `ALU_EQ : br = a == b;
@@ -54,6 +61,7 @@ module ALU (
             op_r <= 4'h0;
     end
 
+    // 有符号乘法
     multiplier #(32) U_mul (
         .clk    (clk),
         .rst    (rst),
@@ -64,6 +72,7 @@ module ALU (
         .busy   (mul_busy)
     );
 
+    // 无符号乘法
     multiplier #(33) U_mulu (
         .clk    (clk),
         .rst    (rst),
@@ -74,6 +83,7 @@ module ALU (
         .busy   (mulu_busy)
     );
 
+    // 有符号除法
     divider #(32) U_div (
         .clk    (clk),
         .rst    (rst),
@@ -85,6 +95,7 @@ module ALU (
         .busy   (div_busy)
     );
 
+    // 无符号除法
     divider #(33) U_divu (
         .clk    (clk),
         .rst    (rst),
