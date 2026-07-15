@@ -91,12 +91,12 @@ module Controller (
     
     
     // alua_sel ALU两个输入来自哪里
-    wire ALU_A_SEL_RS1 = ADDI | ORI | SLLI | LW | BEQ | BNE | JAL | AND | OR | SLT | SLTU | MUL | MULH | MULHU | DIV | DIVU | REM | REMU | ANDI | SLTI | SLTIU;
-    wire ALU_A_SEL_PC  = BLT | BLTU | BGE | BGEU;
+    wire ALU_A_SEL_RS1 = ADDI | ORI | SLLI | LW | BEQ | BNE | JAL | AND | OR | SLT | SLTU | MUL | MULH | MULHU | DIV | DIVU | REM | REMU | ANDI | SLTI | SLTIU | BLT | BLTU | BGE | BGEU;
+    wire ALU_A_SEL_PC  = 1'b0;
                         
     // alub_sel ALU两个输入来自哪里
-    wire ALU_B_SEL_RS2 = BEQ | BNE | AND | OR | SLT | SLTU | MUL | MULH | MULHU | DIV | DIVU | REM | REMU;
-    wire ALU_B_SEL_EXT = ADDI | ORI | SLLI | LW | JAL | ANDI | SLTI | SLTIU | BLT | BLTU | BGE | BGEU;
+    wire ALU_B_SEL_RS2 = BEQ | BNE | AND | OR | SLT | SLTU | MUL | MULH | MULHU | DIV | DIVU | REM | REMU | BLT | BLTU | BGE | BGEU;
+    wire ALU_B_SEL_EXT = ADDI | ORI | SLLI | LW | JAL | ANDI | SLTI | SLTIU;
         
     // ram_r_op
     wire RAM_EXT_B  = 1'b0;
@@ -130,7 +130,20 @@ module Controller (
                   | {5{ALU_OP_OR   }} & `ALU_OR
                   | {5{ALU_OP_SLL  }} & `ALU_SLL
                   | {5{ALU_OP_EQ   }} & `ALU_EQ
-                  | {5{ALU_OP_NE   }} & `ALU_NE;
+                  | {5{ALU_OP_NE   }} & `ALU_NE
+                  | {5{ALU_OP_AND  }} & `ALU_AND
+                  | {5{ALU_OP_SLT  }} & `ALU_SLT
+                  | {5{ALU_OP_SLTU }} & `ALU_SLTU
+                  | {5{ALU_OP_MUL  }} & `ALU_MUL
+                  | {5{ALU_OP_MULH }} & `ALU_MULH
+                  | {5{ALU_OP_MULHU}} & `ALU_MULHU
+                  | {5{ALU_OP_DIV  }} & `ALU_DIV
+                  | {5{ALU_OP_DIVU }} & `ALU_DIVU
+                  | {5{ALU_OP_REM  }} & `ALU_REM
+                  | {5{ALU_OP_REMU }} & `ALU_REMU
+                  | {5{ALU_OP_BE   }} & `ALU_BE
+                  | {5{ALU_OP_BEU  }} & `ALU_BEU;
+
 
     assign alua_sel = ALU_A_SEL_PC & `ALU_A_PC | ALU_A_SEL_RS1 & `ALU_A_RS1;
 
@@ -146,7 +159,7 @@ module Controller (
                     | {4{RAM_W_H}} & `RAM_WE_H
                     | {4{RAM_W_W}} & `RAM_WE_W;
 
-    assign is_mul = 1'b0;
-    assign is_div = 1'b0;
+    assign is_mul = ALU_OP_MUL | ALU_OP_MULH | ALU_OP_MULHU;
+    assign is_div = ALU_OP_DIV | ALU_OP_DIVU | ALU_OP_REM | ALU_OP_REMU;
 
 endmodule

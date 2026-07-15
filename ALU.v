@@ -34,6 +34,13 @@ module ALU (
             `ALU_SLL  : c = a << b[4:0];
             `ALU_BE   : c = ($signed(a) < $signed(b)) ? 32'h0 : 32'h1;
             `ALU_BEU  : c = a < b ? 32'h0 : 32'h1;
+            `ALU_MUL   : c = mul_res[31:0];
+            `ALU_MULH  : c = mul_res[63:32];      // 有符号乘法高32位
+            `ALU_MULHU : c = mulu_res[63:32];     // 无符号乘法高32位
+            `ALU_DIV   : c = div_quo;             // 有符号除法商
+            `ALU_DIVU  : c = divu_quo;            // 无符号除法商
+            `ALU_REM   : c = div_rem;             // 有符号余数
+            `ALU_REMU  : c = divu_rem;            // 无符号余数
             default   : c = 32'h0;
         endcase
     end
@@ -43,16 +50,20 @@ module ALU (
         case (op)
             `ALU_EQ : br = a == b;
             `ALU_NE : br = a != b;
+            `ALU_SLT : br = $signed(a) < $signed(b);   // BLT
+            `ALU_SLTU: br = a < b;                     // BLTU
+            `ALU_BE  : br = $signed(a) >= $signed(b);  // BGE
+            `ALU_BEU : br = a >= b;                    // BGEU
             default : br = 1'b0;
         endcase
     end
 
-    assign mul_flag  = 1'b0;
-    assign mulu_flag = 1'b0;
-    assign div_flag  = 1'b0;
-    assign divu_flag = 1'b0;
-    // assign busy      = mul_busy | mulu_busy | div_busy | divu_busy;
-    assign busy      = 1'b0;
+    assign mul_flag  = (op == `ALU_MUL) | (op == `ALU_MULH);
+    assign mulu_flag = (op == `ALU_MULHU);
+    assign div_flag  = (op == `ALU_DIV) | (op == `ALU_REM);
+    assign divu_flag = (op == `ALU_DIVU) | (op == `ALU_REMU);
+    assign busy      = mul_busy | mulu_busy | div_busy | divu_busy;
+    // assign busy      = 1'b0;
 
     always @(posedge clk) begin
         if (mul_flag | mulu_flag | div_flag | divu_flag)

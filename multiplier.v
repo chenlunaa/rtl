@@ -75,7 +75,7 @@ module multiplier #(
 		end
 
 		else if(start && !busy_r)begin
-			count <= 32;
+			count <= WIDTH;
 		end
 		else if(busy_r)begin
 			count <= count - 1;

@@ -5,11 +5,11 @@ module divider #(
 )(
     input  wire       clk,
     input  wire       rst,
-    input  wire [WIDTH-1:0] x,
-    input  wire [WIDTH-1:0] y,
+    input  wire [WIDTH-1:0] x,      // 被除数（补码输入）
+    input  wire [WIDTH-1:0] y,      // 除数（补码输入）
     input  wire       start,
-    output wire [WIDTH-1:0] z,
-    output reg  [WIDTH-1:0] r,
+    output wire [WIDTH-1:0] z,      // 商（补码输出）
+    output reg  [WIDTH-1:0] r,      // 余数（补码输出，与被除数同号）
     output reg        busy     
 );
     localparam CNT_W = $clog2(WIDTH+1);
@@ -34,7 +34,7 @@ module divider #(
     reg [WIDTH-1:0]   Q_next;    // 下一拍的部分商
 
     always @(*) begin
-        R_sub = {1'b0, R[2*WIDTH+1:WIDTH]} - {1'b0, divisor}; // R[15:8] - divisor
+        R_sub = {1'b0, R[2*WIDTH-1:WIDTH]} - {1'b0, divisor}; // R[15:8] - divisor
         // R_sub[8] == 0 表示够减（无借位），R_sub[8] == 1 表示不够减
         if (!R_sub[WIDTH]) begin
             // 够减：商上1
@@ -57,7 +57,7 @@ module divider #(
             end
             else begin
                 // 非最后一轮：恢复余数（保持R[15:8]不变），整体左移1位
-                R_next = {R[2*WIDTH:0], 1'b0};
+                R_next = {R[2*WIDTH-2:0], 1'b0};
             end
         end
     end
