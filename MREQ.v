@@ -28,11 +28,15 @@ module MREQ (
         case (ram_wop)
             `RAM_WE_B: begin                            // sb
                 // TODO: 根据字节偏移量offset，分别使用ram_wop、ram_wdata产生da_wen、da_wdata
-                
+                da_wen   = ram_wop << offset;
+                da_wdata = ram_wdata << (offset * 8);
             end
             `RAM_WE_H: begin                            // sh
                 // TODO: 根据16位半节偏移量offset[1]，分别使用ram_wop、ram_wdata产生da_wen、da_wdata
-                
+                if (offset == 2'h0 || offset == 2'h2) begin
+                    da_wen   = ram_wop << offset;
+                    da_wdata = ram_wdata << (offset * 8);
+                end
             end
             `RAM_WE_W:                                  // sw
                 if (offset == 2'h0) begin

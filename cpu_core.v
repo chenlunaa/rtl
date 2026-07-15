@@ -226,6 +226,7 @@ module cpu_core(
 
     assign rf_wR  = ld_st_flag | mul_div_flag ? rf_wR_r : inst[11:7];
 
+    // 决定写回什么数据
     always @(*) begin
         casex ({ld_st_flag, rf_wsel})
             {1'b0, `WB_ALU}: rf_wD = alu_c;
