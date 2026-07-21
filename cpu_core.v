@@ -91,6 +91,7 @@ module cpu_core(
         .pc         (pc),
         .offset     (ext),
         .br         (br),
+        .jalr_target (alu_c),
         .npc        (npc),
         .pc4        (pc4)
     );
@@ -189,7 +190,7 @@ module cpu_core(
         .da_addr    (da_addr),
 
         .ram_wop    (ram_wop),
-        .ram_wdata  (32'h0),
+        .ram_wdata  (rf_rd2),
         .da_wen     (da_wen),
         .da_wdata   (da_wdata)
     );
@@ -226,7 +227,6 @@ module cpu_core(
 
     assign rf_wR  = ld_st_flag | mul_div_flag ? rf_wR_r : inst[11:7];
 
-    // 决定写回什么数据
     always @(*) begin
         casex ({ld_st_flag, rf_wsel})
             {1'b0, `WB_ALU}: rf_wD = alu_c;
@@ -259,6 +259,14 @@ module cpu_core(
     wire [ 3:0] debug_mem_we    /* verilator public */ ;    // MEM阶段写访存时的写使能
     wire [31:0] debug_mem_waddr /* verilator public */ ;    // MEM阶段写访存时的写地址 (若mem_we为0，此项可为任意值)
     wire [31:0] debug_mem_wdata /* verilator public */ ;    // MEM阶段写访存时的写数据 (若mem_we为0，此项可为任意值)
+    reg  [31:0] debug_mem_wdata_r;
+
+    always @(posedge cpu_clk or posedge cpu_rst) begin
+        if (cpu_rst)
+            debug_mem_wdata_r <= 32'h0;
+        else if (ram_wop != `RAM_WE_N)
+            debug_mem_wdata_r <= rf_rd2;
+    end
 
     assign debug_wb_pc    = pc;
     assign debug_wb_rf_we = rf_we1;
@@ -268,7 +276,7 @@ module cpu_core(
     assign debug_mem_pc    = pc;
     assign debug_mem_we    = daccess_wen;
     assign debug_mem_waddr = daccess_addr;
-    assign debug_mem_wdata = daccess_wdata;
+    assign debug_mem_wdata = debug_mem_wdata_r;
 `endif
 
 endmodule

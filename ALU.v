@@ -15,64 +15,81 @@ module ALU (
 );
 
     wire        mul_flag, mulu_flag;
-    wire [63:0] mul_res , mulu_res ;
+    wire [63:0] mul_res;
+    wire [65:0] mulu_res;
     wire        mul_busy, mulu_busy;
     wire        div_flag, divu_flag;
-    wire [31:0] div_quo , divu_quo ;    // quotient
-    wire [31:0] div_rem , divu_rem ;    // remainder
+    wire [32:0] div_quo;
+    wire [32:0] divu_quo;
+    wire [32:0] div_rem;
+    wire [32:0] divu_rem;
     wire        div_busy, divu_busy;
+    wire [31:0] div_abs_a = a[31] ? ~a + 1'b1 : a;
+    wire [31:0] div_abs_b = b[31] ? ~b + 1'b1 : b;
     reg  [ 4:0] op_r;
+    reg         div_zero_r;
+    reg  [31:0] dividend_r;
 
-    // 只实现了加法、或运算、左移运算
     always @(*) begin
-        case (op_r != 4'h0 ? op_r : op)
+        case (op_r != 5'h0 ? op_r : op)
             `ALU_ADD  : c = a + b;
-            `ALU_AND  : c = a & b;
-            `ALU_SLT  : c = ($signed(a) < $signed(b)) ? 32'h1 : 32'h0;
+            `ALU_SUB  : c = a - b;
+            `ALU_XOR  : c = a ^ b;
             `ALU_OR   : c = a | b;
-            `ALU_SLTU : c = a < b ? 32'h1 : 32'h0;
+            `ALU_AND  : c = a & b;
             `ALU_SLL  : c = a << b[4:0];
-            `ALU_BE   : c = ($signed(a) < $signed(b)) ? 32'h0 : 32'h1;
-            `ALU_BEU  : c = a < b ? 32'h0 : 32'h1;
-            `ALU_MUL   : c = mul_res[31:0];
-            `ALU_MULH  : c = mul_res[63:32];      // 有符号乘法高32位
-            `ALU_MULHU : c = mulu_res[63:32];     // 无符号乘法高32位
-            `ALU_DIV   : c = div_quo;             // 有符号除法商
-            `ALU_DIVU  : c = divu_quo;            // 无符号除法商
-            `ALU_REM   : c = div_rem;             // 有符号余数
-            `ALU_REMU  : c = divu_rem;            // 无符号余数
+            `ALU_SRL  : c = a >> b[4:0];
+            `ALU_SRA  : c = $signed(a) >>> b[4:0];
+            `ALU_SLT  : c = $signed(a) < $signed(b) ? 32'h1 : 32'h0;
+            `ALU_SLTU : c = a < b ? 32'h1 : 32'h0;
+            `ALU_MUL  : c = mul_res[31:0];
+            `ALU_MULH : c = mul_res[63:32];
+            `ALU_MULHU: c = mulu_res[63:32];
+            `ALU_DIV  : c = div_zero_r ? 32'hffff_ffff : div_quo[31:0];
+            `ALU_DIVU : c = div_zero_r ? 32'hffff_ffff : divu_quo[31:0];
+            `ALU_REM  : c = div_zero_r ? dividend_r : div_rem[31:0];
+            `ALU_REMU : c = div_zero_r ? dividend_r : divu_rem[31:0];
             default   : c = 32'h0;
         endcase
     end
 
-    // 分支跳转信号br
     always @(*) begin
         case (op)
             `ALU_EQ : br = a == b;
             `ALU_NE : br = a != b;
-            `ALU_SLT : br = $signed(a) < $signed(b);   // BLT
-            `ALU_SLTU: br = a < b;                     // BLTU
-            `ALU_BE  : br = $signed(a) >= $signed(b);  // BGE
-            `ALU_BEU : br = a >= b;                    // BGEU
+            `ALU_SLT : br = $signed(a) < $signed(b);
+            `ALU_SLTU: br = a < b;
+            `ALU_BGE : br = $signed(a) >= $signed(b);
+            `ALU_BGEU: br = a >= b;
             default : br = 1'b0;
         endcase
     end
 
     assign mul_flag  = (op == `ALU_MUL) | (op == `ALU_MULH);
-    assign mulu_flag = (op == `ALU_MULHU);
+    assign mulu_flag = op == `ALU_MULHU;
     assign div_flag  = (op == `ALU_DIV) | (op == `ALU_REM);
     assign divu_flag = (op == `ALU_DIVU) | (op == `ALU_REMU);
     assign busy      = mul_busy | mulu_busy | div_busy | divu_busy;
-    // assign busy      = 1'b0;
 
-    always @(posedge clk) begin
-        if (mul_flag | mulu_flag | div_flag | divu_flag)
+    always @(posedge clk or posedge rst) begin
+        if (rst)
+            op_r <= 5'h0;
+        else if (mul_flag | mulu_flag | div_flag | divu_flag)
             op_r <= op;
         else if (!busy)
-            op_r <= 4'h0;
+            op_r <= 5'h0;
     end
 
-    // 有符号乘法
+    always @(posedge clk or posedge rst) begin
+        if (rst) begin
+            div_zero_r <= 1'b0;
+            dividend_r <= 32'h0;
+        end else if (div_flag | divu_flag) begin
+            div_zero_r <= b == 32'h0;
+            dividend_r <= a;
+        end
+    end
+
     multiplier #(32) U_mul (
         .clk    (clk),
         .rst    (rst),
@@ -83,7 +100,6 @@ module ALU (
         .busy   (mul_busy)
     );
 
-    // 无符号乘法
     multiplier #(33) U_mulu (
         .clk    (clk),
         .rst    (rst),
@@ -94,19 +110,17 @@ module ALU (
         .busy   (mulu_busy)
     );
 
-    // 有符号除法
-    divider #(32) U_div (
+    divider #(33) U_div (
         .clk    (clk),
         .rst    (rst),
-        .x      (a[31] ? {1'b1, ~a[30:0] + 31'h1} : a),
-        .y      (b[31] ? {1'b1, ~b[30:0] + 31'h1} : b),
+        .x      ({a[31], div_abs_a}),
+        .y      ({b[31], div_abs_b}),
         .start  (div_flag),
         .z      (div_quo),
         .r      (div_rem),
         .busy   (div_busy)
     );
 
-    // 无符号除法
     divider #(33) U_divu (
         .clk    (clk),
         .rst    (rst),

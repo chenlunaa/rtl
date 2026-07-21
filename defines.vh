@@ -5,31 +5,35 @@
 
 `define PC_INIT_VAL 32'h0
 
-
 `define ALU_ADD     5'h00
-`define ALU_AND     5'h01   // 新增：按位与
-`define ALU_SLT     5'h02   // 新增：有符号小于
+`define ALU_SUB     5'h01
+`define ALU_XOR     5'h02
 `define ALU_OR      5'h03
-`define ALU_SLTU    5'h04   // 新增：无符号小于
+`define ALU_AND     5'h04
 `define ALU_SLL     5'h05
-`define ALU_BE     5'h06   // 新增：分支有符号大于等于 
-`define ALU_BEU    5'h07   // 新增： 分支无符号大于等于
+`define ALU_SRL     5'h06
+`define ALU_SRA     5'h07
 `define ALU_EQ      5'h08
 `define ALU_NE      5'h09
-
-`define ALU_MUL     5'h0A   // 乘法
-`define ALU_MULH    5'h0B   // 乘法高位 (有符号×有符号)
-`define ALU_MULHU   5'h0C   // 乘法高位 (无符号×无符号)
-`define ALU_DIV     5'h0D   // 有符号除法
-`define ALU_DIVU    5'h0E   // 无符号除法
-`define ALU_REM     5'h0F   // 有符号取余
-`define ALU_REMU    5'h10   // 无符号取余
+`define ALU_SLT     5'h0A
+`define ALU_SLTU    5'h0B
+`define ALU_MUL     5'h0C
+`define ALU_MULH    5'h0D
+`define ALU_MULHU   5'h0E
+`define ALU_DIV     5'h0F
+`define ALU_DIVU    5'h10
+`define ALU_REM     5'h11
+`define ALU_REMU    5'h12
+`define ALU_BGE     5'h13
+`define ALU_BGEU    5'h14
     
 `define NPC_PC4     2'b00
+`define NPC_JALR    2'b01
 `define NPC_BRA     2'b10
 `define NPC_JMP     2'b11
     
 `define EXT_I       3'b000
+`define EXT_S       3'b001
 `define EXT_B       3'b010
 `define EXT_U       3'b011
 `define EXT_J       3'b100

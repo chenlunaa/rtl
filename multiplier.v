@@ -15,95 +15,69 @@ module multiplier #(
 	localparam O_WID = 2*WIDTH;
 	localparam CNT_W = $clog2(WIDTH+1);
 
-    // TODO
-	reg [WIDTH:0] M; // multiplicand_copy
+	reg [WIDTH:0] multiplicand;
 	reg [CNT_W-1:0] count;
-
 	reg busy_r;
-	assign busy = busy_r;
-	reg [WIDTH:0] A_calc;
-	reg [O_WID + 1:0] booth;
-	reg [O_WID + 1:0] booth_next;
-	
-	always @(*)begin
-		case({booth[1:0]})
+	reg [WIDTH:0] accumulator;
+	reg [O_WID+1:0] booth;
+	reg [O_WID+1:0] booth_next;
 
-			2'b01: A_calc = booth[O_WID + 1:WIDTH + 1] + M;
-			2'b10: A_calc = booth[O_WID + 1:WIDTH + 1] - M;
-			default: A_calc = booth[O_WID + 1:WIDTH + 1];
+	assign busy = busy_r;
+
+	always @(*) begin
+		case (booth[1:0])
+			2'b01: accumulator = booth[O_WID+1:WIDTH+1] + multiplicand;
+			2'b10: accumulator = booth[O_WID+1:WIDTH+1] - multiplicand;
+			default: accumulator = booth[O_WID+1:WIDTH+1];
 		endcase
 
-		 booth_next = {
-                    A_calc[WIDTH],
-                    A_calc,
-                    booth[WIDTH:1]
-                 };
-	end
-
-
-	always @(posedge clk or posedge rst) begin
-
-		if (rst) begin
-			M <= 0;
-		end
-
-		else if(start && !busy_r)begin
-			M <= {x[WIDTH - 1], x};
-		end
+		booth_next = {
+			accumulator[WIDTH],
+			accumulator,
+			booth[WIDTH:1]
+		};
 	end
 
 	always @(posedge clk or posedge rst) begin
-		if (rst) begin
+		if (rst)
+			multiplicand <= 0;
+		else if (start && !busy_r)
+			multiplicand <= {x[WIDTH-1], x};
+	end
+
+	always @(posedge clk or posedge rst) begin
+		if (rst)
 			booth <= 0;
-		end
-
-		else if(start && !busy_r)begin
-			booth[O_WID + 1:WIDTH + 1] <= 0;
+		else if (start && !busy_r) begin
+			booth[O_WID+1:WIDTH+1] <= 0;
 			booth[WIDTH:1] <= y;
 			booth[0] <= 0;
-		end
-		else if(busy_r)begin
+		end else if (busy_r)
 			booth <= booth_next;
-		end
 	end
 
-    
 	always @(posedge clk or posedge rst) begin
-
-		if (rst) begin
+		if (rst)
 			count <= 0;
-		end
-
-		else if(start && !busy_r)begin
+		else if (start && !busy_r)
 			count <= WIDTH;
-		end
-		else if(busy_r)begin
-			count <= count - 1;
-		end
-	end
-
-
-	always @(posedge clk or posedge rst) begin
-		if (rst) begin
-			busy_r <= 0;
-		end
-
-		else if(start && !busy_r)begin
-			busy_r <= 1;
-		end
-
-		else if(count == 1 && busy_r)begin
-			busy_r <= 0;
-		end
+		else if (busy_r)
+			count <= count - 1'b1;
 	end
 
 	always @(posedge clk or posedge rst) begin
-		if (rst) begin
+		if (rst)
+			busy_r <= 1'b0;
+		else if (start && !busy_r)
+			busy_r <= 1'b1;
+		else if (count == 1 && busy_r)
+			busy_r <= 1'b0;
+	end
+
+	always @(posedge clk or posedge rst) begin
+		if (rst)
 			z <= 0;
-		end
-
-		else if(count == 1 && busy_r)begin
+		else if (count == 1 && busy_r)
 			z <= booth_next[O_WID:1];
-		end
 	end
 endmodule
