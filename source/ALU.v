@@ -11,8 +11,7 @@ module ALU (
     
     output reg  [31:0]  c,
     output reg          br,
-    output wire         busy,
-    output wire         done
+    output wire         busy
 );
 
     wire        mul_flag, mulu_flag;
@@ -30,16 +29,6 @@ module ALU (
     reg  [ 4:0] op_r;
     reg         div_zero_r;
     reg  [31:0] dividend_r;
-
-    reg mul_active;
-    reg mulu_active;
-    reg div_active;
-    reg divu_active;
-
-    reg mul_start_r;
-    reg mulu_start_r;
-    reg div_start_r;
-    reg divu_start_r;
 
     always @(*) begin
         c = 32'h0;  // 默认值, 防止 X 态
@@ -83,87 +72,13 @@ module ALU (
     assign div_flag  = (op == `ALU_DIV) | (op == `ALU_REM);
     assign divu_flag = (op == `ALU_DIVU) | (op == `ALU_REMU);
     assign busy      = mul_busy | mulu_busy | div_busy | divu_busy;
-    assign done      = mul_done | mulu_done | div_done | divu_done;
-
-    always @(posedge clk or posedge rst) begin
-        if(rst) begin
-            mul_start_r <= 0;
-            mul_active <= 0;
-        end
-        else begin
-            mul_start_r <= 0;
-
-            if(mul_flag && !mul_active && !mul_busy) begin
-                mul_start_r <= 1;
-                mul_active <= 1;
-            end
-
-            if(mul_done)
-                mul_active <= 0;
-        end
-    end
-
-    always @(posedge clk or posedge rst) begin
-        if(rst) begin
-            mulu_start_r <= 0;
-            mulu_active <= 0;
-        end
-        else begin
-            mulu_start_r <= 0;
-
-            if(mulu_flag && !mulu_active && !mulu_busy) begin
-                mulu_start_r <= 1;
-                mulu_active <= 1;
-            end
-
-            if(mulu_done)
-                mulu_active <= 0;
-        end
-    end
-
-    always @(posedge clk or posedge rst) begin
-        if(rst) begin
-            div_start_r <= 0;
-            div_active <= 0;
-        end
-        else begin
-            div_start_r <= 0;
-
-            if(div_flag && !div_active && !div_busy) begin
-                div_start_r <= 1;
-                div_active <= 1;
-            end
-
-            if(div_done)
-                div_active <= 0;
-        end
-    end
-    
-    always @(posedge clk or posedge rst) begin
-        if(rst) begin
-            divu_start_r <= 0;
-            divu_active <= 0;
-        end
-        else begin
-            divu_start_r <= 0;
-
-            if(divu_flag && !divu_active && !divu_busy) begin
-                divu_start_r <= 1;
-                divu_active <= 1;
-            end
-
-            if(divu_done)
-                divu_active <= 0;
-        end
-    end    
-
 
     always @(posedge clk or posedge rst) begin
         if (rst)
             op_r <= 5'h0;
-        else if (mul_busy| mulu_busy | div_busy | divu_busy)
+        else if (mul_flag | mulu_flag | div_flag | divu_flag)
             op_r <= op;
-        else if (done)
+        else if (!busy)
             op_r <= 5'h0;
     end
 
@@ -182,10 +97,9 @@ module ALU (
         .rst    (rst),
         .x      (a),
         .y      (b),
-        .start  (mul_start_r),
+        .start  (mul_flag),
         .z      (mul_res),
-        .busy   (mul_busy),
-        .done   (mul_done)
+        .busy   (mul_busy)
     );
 
     multiplier #(33) U_mulu (
@@ -193,10 +107,9 @@ module ALU (
         .rst    (rst),
         .x      ({1'b0, a}),
         .y      ({1'b0, b}),
-        .start  (mulu_start_r),
+        .start  (mulu_flag),
         .z      (mulu_res),
-        .busy   (mulu_busy),
-        .done   (mulu_done)
+        .busy   (mulu_busy)
     );
 
     divider #(33) U_div (
@@ -204,11 +117,10 @@ module ALU (
         .rst    (rst),
         .x      ({a[31], div_abs_a}),
         .y      ({b[31], div_abs_b}),
-        .start  (div_start_r),
+        .start  (div_flag),
         .z      (div_quo),
         .r      (div_rem),
-        .busy   (div_busy),
-        .done   (div_done)
+        .busy   (div_busy)
     );
 
     divider #(33) U_divu (
@@ -216,11 +128,10 @@ module ALU (
         .rst    (rst),
         .x      ({1'b0, a}),
         .y      ({1'b0, b}),
-        .start  (divu_start_r),
+        .start  (divu_flag),
         .z      (divu_quo),
         .r      (divu_rem),
-        .busy   (divu_busy),
-        .done   (divu_done)
+        .busy   (divu_busy)
     );
 
 endmodule

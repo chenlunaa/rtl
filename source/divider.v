@@ -10,8 +10,7 @@ module divider #(
     input  wire       start,
     output wire [WIDTH-1:0] z,
     output reg  [WIDTH-1:0] r,
-    output reg        busy   ,
-    output wire       done     
+    output reg        busy     
 );
 
     localparam CNT_W = $clog2(WIDTH+1);
@@ -20,7 +19,6 @@ module divider #(
     reg [CNT_W-1:0] count;
     reg sign_q;
     reg sign_r;
-    reg done_r;
     reg [WIDTH-1:0] divisor;
     reg [2*WIDTH-1:0] partial;
     reg [WIDTH-1:0] quotient_work;
@@ -29,7 +27,6 @@ module divider #(
     reg [WIDTH-1:0] quotient_next;
 
     assign z = quotient;
-    assign done = done_r;
 
     always @(*) begin
         subtraction = {1'b0, partial[2*WIDTH-1:WIDTH]} - {1'b0, divisor};
@@ -55,13 +52,6 @@ module divider #(
         else if (count == 1 && busy)
             busy <= 1'b0;
     end
-
-    always @(posedge clk or posedge rst) begin
-		if(rst)
-			done_r <= 1'b0;
-		else
-			done_r <= (count == 1 && busy);
-	end
 
     always @(posedge clk or posedge rst) begin
         if (rst)

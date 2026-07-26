@@ -29,8 +29,7 @@ module MREQ (
             `RAM_WE_B: begin
                 if (offset == 2'b00) begin
                     da_wen = 4'b0001;
-                    // da_wdata = {24'h0, ram_wdata[7:0]};
-                    da_wdata = ram_wdata;
+                    da_wdata = {24'h0, ram_wdata[7:0]};
                 end else if (offset == 2'b01) begin
                     da_wen = 4'b0010;
                     da_wdata = {16'h0, ram_wdata[7:0], 8'h0};

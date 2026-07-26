@@ -32,11 +32,6 @@ module cpu_core(
 
     // 流水线暂停信号
     wire        pipeline_stall;
-    wire        if_stall;
-    wire        ifid_stall;
-    wire        mul_div_stall;  
-    wire        idex_stall;  
-    wire        exmem_stall;
     // 流水线冲刷信号 (分支预测失败时冲刷 IF/ID 和 ID/EX)
     wire        pipeline_flush;
 
@@ -118,7 +113,6 @@ module cpu_core(
 
     wire [ 2:0] mem_ram_rop;
     wire [ 3:0] mem_ram_wop;
-    wire        mem_req_active;
 
     wire        mem_rf_we;
     wire [ 1:0] mem_rf_wsel;
@@ -164,35 +158,20 @@ module cpu_core(
             first_req <= 1'b0;
     end
 
-    // reg ifetch_pending;
-
-    // always @(posedge cpu_clk or posedge cpu_rst) begin
-    //     if(cpu_rst)
-    //         ifetch_pending <= 1'b0;
-
-    //     else begin
-    //         if(ifetch_valid)
-    //             ifetch_pending <= 1'b1;
-
-    //         else if(ifetch_req)
-    //             ifetch_pending <= 1'b0;
-    //     end
-    // end
 
     // 1. 访存与乘除法的完成信号 (Done)
     wire ldst_done    = daccess_rvalid | daccess_wresp; // 读有效或写响应
-    wire resume_ifetch = ldst_done | mul_div_done;
-
-    wire mem_busy = mem_req_active && !ldst_done;
 
     // 2. 暂停与恢复取指控制
-    wire pause_ifetch  = (id_is_ld_st | ex_is_ld_st) & !ldst_done| // 数据访存或乘除运算未完成时暂停取指
-    (id_is_mul_div | ex_is_mul_div) & !mul_div_done;
+    wire pause_ifetch  = (id_is_ld_st | ex_is_ld_st) & !ldst_done | 
+                        (id_is_mul_div | ex_is_mul_div) & !mul_div_done;
 
-    assign ifetch_req  = !pause_ifetch & !if_stall & (
+    wire resume_ifetch = ldst_done | mul_div_done;
+
+    assign ifetch_req  = !pause_ifetch & !pipeline_stall & (
                                           first_req     |    // 复位后首次取指
                                           ifetch_valid  |    // 上一条已取回，同时立即取下一条
-                                          resume_ifetch |
+                                          resume_ifetch |   
                                           pipeline_flush    // 静态分支预测错误，立即用正确的地址取指
                                         );   // 数据访存或乘除运算结束，继续取指
     assign ifetch_addr = if_pc;
@@ -225,7 +204,6 @@ module cpu_core(
     // 预测失败时使用 EX 阶段计算的正确目标, 否则使用预测的 NPC
     reg [31:0] if_pc_q; // 保存发给 Memory 时的 PC 地址
     reg flush_q;
- 
     assign if_npc = pipeline_flush? ex_jmp_target : (if_pc + 32'd4);
 
     PC U_PC (
@@ -233,8 +211,7 @@ module cpu_core(
         .rst        (cpu_rst),
         .npc        (if_npc),
         .fetch      (ifetch_req),
-        .flush      (pipeline_flush),
-        .stall      (if_stall),
+        .stall      (pipeline_stall),
         .pc         (if_pc)
     );
 
@@ -248,7 +225,7 @@ module cpu_core(
             if_pc_q <= 32'h0;
         end else if (pipeline_flush) begin
             if_pc_q <= ex_jmp_target;
-        end else if (!if_stall) begin
+        end else if (!pipeline_stall) begin
             // 只有在没 Stall 时，才更新发出去的 PC
             if_pc_q <= if_pc;
         end
@@ -272,11 +249,10 @@ module cpu_core(
     IF_ID_Reg U_IF_ID (
         .clk        (cpu_clk),
         .rst        (cpu_rst),
-        .ifetch_valid (ifetch_valid),
-        .stall      (ifid_stall),
+        .stall      (pipeline_stall),
         .flush      (pipeline_flush || flush_q),
         .if_pc      (if_pc_q),
-        .if_pc4     (if_pc_q + 32'd4),
+        .if_pc4     (if_pc4),
         .if_inst    (clean_if_inst),
         .id_pc      (id_pc),
         .id_pc4     (id_pc4),
@@ -366,43 +342,11 @@ module cpu_core(
     //   3. MEM 阶段访存指令等待总线响应
     wire raw_stall   = rs1_ex_stall | rs2_ex_stall;
 
-    // 示例：当刚进入 EX 阶段且处于非 busy 状态时，给一个周期的启动脉冲
-    reg mul_wait_after_stall;
+    wire mul_div_stall = ex_busy;                                    // 乘除法 busy 时暂停
 
-    assign mul_div_stall = (ex_is_mul || ex_is_div) && !mul_div_done;
-
-    assign mem_req_active = (|mem_da_ren) | (|mem_da_wen);
+    wire mem_req_active = (|mem_da_ren) | (|mem_da_wen);
     wire mem_req_done   = daccess_rvalid | daccess_wresp;
-    wire pre_mem_stall =
-        id_is_ld_st & ex_is_ld_st;
-    assign mem_stall    = mem_req_active & !mem_req_done & !pre_mem_stall;
-
-    reg mem_pending;
-
-    always @(posedge cpu_clk) begin
-        if(cpu_rst)
-            mem_pending <= 0;
-
-        else begin
-
-            // 第一次进入访存
-            if(mem_req_active && !mem_pending)
-                mem_pending <= 1;
-
-            // 收到返回
-            if(mem_pending && mem_req_done)
-                mem_pending <= 0;
-
-        end
-    end
-    // wire mem_req = mem_req_active && !mem_pending;
-    // assign mem_stall = mem_pending | mem_req;
-
-    assign if_stall    = raw_stall | mul_div_stall | mem_stall;
-    assign ifid_stall  = raw_stall | mul_div_stall | mem_stall;
-    assign idex_stall  = mul_div_stall | mem_stall;
-    assign exmem_stall = mul_div_stall | mem_stall;
-
+    wire mem_stall      = mem_req_active & !mem_req_done;
     assign pipeline_stall = raw_stall | mul_div_stall | mem_stall;
 
     // =========================================================================
@@ -418,6 +362,7 @@ module cpu_core(
 
     // 乘除法暂停和完成
     assign mul_div_suspend = mul_div_stall;
+    assign mul_div_done    = !ex_busy & ex_is_mul_div;
 
     // EX 阶段跳转标志和目标地址
     assign ex_bj_f      = pipeline_flush;
@@ -486,9 +431,8 @@ module cpu_core(
     ID_EX_Reg U_ID_EX (
         .clk            (cpu_clk),
         .rst            (cpu_rst),
-        .stall          (idex_stall),
+        .stall          (pipeline_stall),
         .flush          (pipeline_flush),
-        .bubble         (raw_stall),
         .id_alu_op      (id_alu_op),
         .id_alua_sel    (id_alua_sel),
         .id_alub_sel    (id_alub_sel),
@@ -529,7 +473,6 @@ module cpu_core(
     assign ex_alu_a = ex_alua_sel ? ex_pc      : ex_rf_rd1;
     assign ex_alu_b = ex_alub_sel ? ex_ext     : ex_rf_rd2;
 
-
     ALU U_ALU (
         .rst        (cpu_rst),
         .clk        (cpu_clk),
@@ -538,8 +481,7 @@ module cpu_core(
         .b          (ex_alu_b),
         .br         (ex_br),
         .c          (ex_alu_c),
-        .busy       (ex_busy),
-        .done       (mul_div_done)
+        .busy       (ex_busy)
     );
 
     // =========================================================================
@@ -550,7 +492,7 @@ module cpu_core(
     EX_MEM_Reg U_EX_MEM (
         .clk            (cpu_clk),
         .rst            (cpu_rst),
-        .stall          (exmem_stall),
+        .stall          (pipeline_stall),
         .ex_alu_c       (ex_alu_c),
         .ex_ram_rop     (ex_ram_rop),
         .ex_ram_wop     (ex_ram_wop),
@@ -588,7 +530,6 @@ module cpu_core(
         .da_wdata   (mem_da_wdata)
     );
 
-
     MEXT U_MEM_EXT (
         .op             (mem_ram_rop),
         .din            (daccess_rdata),
@@ -602,16 +543,10 @@ module cpu_core(
             daccess_ren   <= 4'h0;
             daccess_wen   <= 4'h0;
         end else begin
-            if((!mem_pending)) begin
-                daccess_ren   <= mem_da_ren;
-                daccess_addr  <= mem_da_addr;
-                daccess_wen   <= mem_da_wen;
-                daccess_wdata <= mem_da_wdata;
-            end
-            else begin
-                daccess_ren <= 4'h0;
-                daccess_wen <= 4'h0;
-            end
+            daccess_ren   <= mem_da_ren;
+            daccess_addr  <= mem_da_addr;
+            daccess_wen   <= mem_da_wen;
+            daccess_wdata <= mem_da_wdata;
         end
     end
 
@@ -619,11 +554,21 @@ module cpu_core(
     // MEM/WB 流水寄存器
     // =========================================================================
 
+    // 记录写使能是否已经发过（用于 Stall 期间强行拉低 Trace 信号）
+    reg mem_we_sent;
+    always @(posedge cpu_clk or posedge cpu_rst) begin
+        if (cpu_rst)
+            mem_we_sent <= 1'b0;
+        else if (|daccess_wen)
+            mem_we_sent <= 1'b1; // 已经发出了 1 拍，后续 Stall 期间不能再算作有效
+        else if (!pipeline_stall)
+            mem_we_sent <= 1'b0; // 访存结束，恢复初始状态
+    end
 
     MEM_WB_Reg U_MEM_WB (
         .clk            (cpu_clk),
         .rst            (cpu_rst),
-        .stall          (exmem_stall),
+        .stall          (1'b0),
         .mem_ram_ext    (mem_ram_ext),
         .mem_alu_c      (mem_alu_c),
         .mem_rf_we      (mem_rf_we),
@@ -641,20 +586,6 @@ module cpu_core(
         .wb_pc          (wb_pc),
         .wb_ext         (wb_ext)
     );
-
-    reg mem_we_sent;
-
-    always @(posedge cpu_clk or posedge cpu_rst) begin
-        if (cpu_rst) begin
-            mem_we_sent <= 1'b0;
-        end else if (|mem_da_wen && pipeline_stall) begin
-            // 在 Stall 的第一拍报出 debug_mem_we 后，置 1 屏蔽后续重复的 WE
-            mem_we_sent <= 1'b1;
-        end else if (!pipeline_stall) begin
-            // 流水线恢复流动（解冻进入下一条指令），复位标志
-            mem_we_sent <= 1'b0;
-        end
-    end
 
     // =========================================================================
     // WB 阶段: 写回

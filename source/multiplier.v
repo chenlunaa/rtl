@@ -9,8 +9,7 @@ module multiplier #(
 	input  wire [WIDTH-1:0] y,
 	input  wire        start,
 	output reg  [2*WIDTH-1:0] z,
-	output wire        busy,
-	output wire        done
+	output wire        busy 
 );
 
 	localparam O_WID = 2*WIDTH;
@@ -19,13 +18,11 @@ module multiplier #(
 	reg [WIDTH:0] multiplicand;
 	reg [CNT_W-1:0] count;
 	reg busy_r;
-	reg done_r;
 	reg [WIDTH:0] accumulator;
 	reg [O_WID+1:0] booth;
 	reg [O_WID+1:0] booth_next;
 
 	assign busy = busy_r;
-	assign done = done_r;
 
 	always @(*) begin
 		case (booth[1:0])
@@ -75,13 +72,6 @@ module multiplier #(
 			busy_r <= 1'b1;
 		else if (count == 1 && busy_r)
 			busy_r <= 1'b0;
-	end
-
-	always @(posedge clk or posedge rst) begin
-		if(rst)
-			done_r <= 1'b0;
-		else
-			done_r <= (count == 1 && busy_r);
 	end
 
 	always @(posedge clk or posedge rst) begin
